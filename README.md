@@ -20,6 +20,12 @@ $ make
 $ ./bin/ffufw
 ```
 
+Install is also possible using go install:
+
+```
+go install github.com/puzzlepeaches/ffufw@latest
+```
+
 ## Usage
 
 ```

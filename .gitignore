@@ -2,3 +2,4 @@ bin
 vendor
 output/
 *.txt
+leaky-paths.txt

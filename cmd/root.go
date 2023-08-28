@@ -15,6 +15,8 @@ var (
 	outputDir    string
 	wordlistPath string
 	configFile   string
+	stdout       bool
+	quiet        bool
 )
 
 var rootCmd = &cobra.Command{
@@ -34,13 +36,17 @@ func Execute() {
 }
 
 func init() {
+
 	rootCmd.Flags().IntVarP(&concurrency, "concurrency", "t", 3, "Concurrency level for scanning")
 	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory for FFUF results")
 	rootCmd.Flags().StringVarP(&wordlistPath, "wordlist", "w", "", "Path to the wordlist")
 	rootCmd.Flags().StringVarP(&configFile, "config", "c", "~/.ffufrc", "Config file for FFUF")
+	rootCmd.Flags().BoolP("stdout", "s", false, "Print output to stdout")
+	rootCmd.Flags().BoolP("quiet", "q", false, "Do not print additional information (silent mode)")
 
 	rootCmd.MarkFlagRequired("output")
 	rootCmd.MarkFlagRequired("wordlist")
+
 }
 
 func runCommand(cmd *cobra.Command, args []string) {
@@ -54,11 +60,44 @@ func runCommand(cmd *cobra.Command, args []string) {
 	}
 	defer file.Close()
 
+	// If stdout is set, set quiet to true
+	if cmd.Flag("stdout").Changed {
+		stdout = true
+		quiet = true
+
+		// Disable logging
+		logrus.SetOutput(os.Stdout)
+		logrus.SetLevel(logrus.ErrorLevel)
+	}
+	if cmd.Flag("quiet").Changed {
+		quiet = true
+		// Disable logging
+		logrus.SetOutput(os.Stdout)
+		logrus.SetLevel(logrus.ErrorLevel)
+	}
+
 	// Ensure config file exists
-	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		logrus.Errorf("Config file %s does not exist\n", configFile)
-		logrus.Info("Continuing without config file")
-		configFile = ""
+	if configFile == "~/.ffufrc" {
+		configFile = os.ExpandEnv("$HOME/.ffufrc")
+		if _, err := os.Stat(configFile); os.IsNotExist(err) {
+			logrus.Errorf("Config file %s does not exist\n", configFile)
+
+			logrus.Info("Continuing without config file")
+			configFile = ""
+		}
+
+		logrus.Info("Using default config file ~/.ffufrc")
+	} else {
+		if _, err := os.Stat(configFile); os.IsNotExist(err) {
+			configFile = os.ExpandEnv(configFile)
+			if _, err := os.Stat(configFile); os.IsNotExist(err) {
+				logrus.Errorf("Config file %s does not exist\n", configFile)
+				logrus.Info("Continuing without config file")
+				configFile = ""
+			}
+			logrus.Infof("Using config file %s", configFile)
+		}
+		logrus.Infof("Using config file %s", configFile)
 	}
 
 	// Ensure wordlist file exists
@@ -71,16 +110,28 @@ func runCommand(cmd *cobra.Command, args []string) {
 	_, err = exec.LookPath("ffuf")
 	if err != nil {
 		logrus.Error("FFUF is not installed.")
-		logrus.Error("Install ffuf using: go install github.com/ffuf/ffuf/v2@latest")
-		return
+		logrus.Info("Trying to install ffuf...")
+		cmd := exec.Command("go", "install", "github.com/ffuf/ffuf/v2@latest")
+		if err := cmd.Run(); err != nil {
+			logrus.Errorf("Error installing ffuf: %v", err)
+			logrus.Error("Install ffuf using: go install github.com/ffuf/ffuf/v2@latest")
+			return
+		}
 	}
 
 	// Ensure ffufPostprocessing is installed
 	_, err = exec.LookPath("ffufPostprocessing")
 	if err != nil {
 		logrus.Error("ffufPostprocessing is not installed.")
-		logrus.Error("Install ffufPostprocessing using:  go install github.com/Damian89/ffufPostprocessing@latest")
-		return
+
+		// Try to install ffufPostprocessing
+		logrus.Info("Trying to install ffufPostprocessing...")
+		cmd := exec.Command("go", "install", "github.com/Damian89/ffufPostprocessing@latest")
+		if err := cmd.Run(); err != nil {
+			logrus.Errorf("Error installing ffufPostprocessing: %v", err)
+			logrus.Error("Install ffufPostprocessing using:  go install github.com/Damian89/ffufPostprocessing@latest")
+			return
+		}
 	}
 
 	sem := make(chan bool, concurrency)
@@ -91,7 +142,7 @@ func runCommand(cmd *cobra.Command, args []string) {
 		url := scanner.Text()
 		sem <- true
 		wg.Add(1)
-		go runFFUF(url, outputDir, wordlistPath, configFile, &wg, sem)
+		go runFFUF(url, outputDir, wordlistPath, configFile, stdout, quiet, &wg, sem)
 	}
 
 	wg.Wait()

@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func runFFUF(urlString string, outputDir string, wordlistPath string, configFile string, stdout bool, quiet bool, wg *sync.WaitGroup, sem chan bool) {
+func runFFUF(urlString string, outputDir string, wordlistPath string, configFile string, stdout bool, quiet bool, ffufPath string, ffufPostprocessingPath string, wg *sync.WaitGroup, sem chan bool) {
 
 	defer wg.Done()
 	defer func() { <-sem }()
@@ -28,7 +28,7 @@ func runFFUF(urlString string, outputDir string, wordlistPath string, configFile
 		return
 	}
 
-	resultFilePath := runFFUFCommand(urlString, wordlistPath, hostOutputDir, configFile)
+	resultFilePath := runFFUFCommand(urlString, wordlistPath, hostOutputDir, configFile, ffufPath)
 	if resultFilePath == "" {
 		return
 	}
@@ -37,7 +37,7 @@ func runFFUF(urlString string, outputDir string, wordlistPath string, configFile
 		return
 	}
 
-	if !runPostProcessing(resultFilePath, hostOutputDir, urlString) {
+	if !runPostProcessing(resultFilePath, hostOutputDir, urlString, ffufPostprocessingPath) {
 		return
 	}
 
@@ -74,7 +74,7 @@ func createOutputDirectory(parsedURL *url.URL, outputDir string) string {
 	return hostOutputDir
 }
 
-func runFFUFCommand(urlString string, wordlistPath string, hostOutputDir string, configFile string) string {
+func runFFUFCommand(urlString string, wordlistPath string, hostOutputDir string, configFile string, ffufPath string) string {
 	// Create fuzz URL
 	fuzzURL := urlString + "/FUZZ"
 
@@ -86,7 +86,14 @@ func runFFUFCommand(urlString string, wordlistPath string, hostOutputDir string,
 		ffufBaseCmd = append(ffufBaseCmd, "-c", configFile)
 	}
 
-	cmd := exec.Command("ffuf", ffufBaseCmd...)
+	// Check if ffufPath is not default
+	var cmd *exec.Cmd
+
+	if ffufPath != "ffuf" {
+		cmd = exec.Command(ffufPath, ffufBaseCmd...)
+	} else {
+		cmd = exec.Command("ffuf", ffufBaseCmd...)
+	}
 
 	if err := cmd.Run(); err != nil {
 		logrus.Errorf("Error running FFUF on %s: %v", urlString, err)
@@ -111,9 +118,17 @@ func waitForResultsFile(resultFilePath string, urlString string) bool {
 	return false
 }
 
-func runPostProcessing(resultFilePath string, hostOutputDir string, urlString string) bool {
+func runPostProcessing(resultFilePath string, hostOutputDir string, urlString string, ffufPostprocessingPath string) bool {
+
 	// Running ffufPostprocessing tool
-	postProcCmd := exec.Command("ffufPostprocessing", "-delete-all-bodies", "-result-file", resultFilePath, "-bodies-folder", hostOutputDir, "-overwrite-result-file")
+	var postProcCmd *exec.Cmd
+	if ffufPostprocessingPath != "ffufPostprocessing" {
+		postProcCmd = exec.Command(ffufPostprocessingPath, "-delete-all-bodies", "-result-file", resultFilePath, "-bodies-folder", hostOutputDir, "-overwrite-result-file")
+	} else {
+		postProcCmd = exec.Command("ffufPostprocessing", "-delete-all-bodies", "-result-file", resultFilePath, "-bodies-folder", hostOutputDir, "-overwrite-result-file")
+	}
+
+	// postProcCmd := exec.Command("ffufPostprocessing", "-delete-all-bodies", "-result-file", resultFilePath, "-bodies-folder", hostOutputDir, "-overwrite-result-file")
 
 	if err := postProcCmd.Run(); err != nil {
 		logrus.Errorf("Error running ffufPostprocessing on %s: %v", hostOutputDir, err)

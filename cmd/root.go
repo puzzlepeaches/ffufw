@@ -11,12 +11,14 @@ import (
 )
 
 var (
-	concurrency  int
-	outputDir    string
-	wordlistPath string
-	configFile   string
-	stdout       bool
-	quiet        bool
+	concurrency            int
+	outputDir              string
+	wordlistPath           string
+	configFile             string
+	stdout                 bool
+	quiet                  bool
+	ffufPath               string
+	ffufPostprocessingPath string
 )
 
 var rootCmd = &cobra.Command{
@@ -41,6 +43,8 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory for FFUF results")
 	rootCmd.Flags().StringVarP(&wordlistPath, "wordlist", "w", "", "Path to the wordlist")
 	rootCmd.Flags().StringVarP(&configFile, "config", "c", "~/.ffufrc", "Config file for FFUF")
+	rootCmd.Flags().StringVarP(&ffufPath, "ffuf", "f", "ffuf", "Path to the ffuf binary")
+	rootCmd.Flags().StringVarP(&ffufPostprocessingPath, "ffufPostprocessing", "p", "ffufPostprocessing", "Path to the ffufPostprocessing binary")
 	rootCmd.Flags().BoolP("stdout", "s", false, "Print output to stdout")
 	rootCmd.Flags().BoolP("quiet", "q", false, "Do not print additional information (silent mode)")
 
@@ -107,30 +111,48 @@ func runCommand(cmd *cobra.Command, args []string) {
 	}
 
 	// Ensure ffuf is installed
-	_, err = exec.LookPath("ffuf")
-	if err != nil {
-		logrus.Error("FFUF is not installed.")
-		logrus.Info("Trying to install ffuf...")
-		cmd := exec.Command("go", "install", "github.com/ffuf/ffuf/v2@latest")
-		if err := cmd.Run(); err != nil {
-			logrus.Errorf("Error installing ffuf: %v", err)
-			logrus.Error("Install ffuf using: go install github.com/ffuf/ffuf/v2@latest")
-			return
+
+	// Check if ffufPath is set
+	if cmd.Flag("ffuf").Changed {
+		_, err = exec.LookPath(ffufPath)
+		if err != nil {
+			logrus.Errorf("FFUF is not installed in %s", ffufPath)
+		}
+		// Check if ffuf is installed in $PATH
+	} else {
+		_, err = exec.LookPath("ffuf")
+		if err != nil {
+			logrus.Error("FFUF is not installed.")
+			logrus.Info("Trying to install ffuf...")
+			cmd := exec.Command("go", "install", "github.com/ffuf/ffuf/v2@latest")
+			if err := cmd.Run(); err != nil {
+				logrus.Errorf("Error installing ffuf: %v", err)
+				logrus.Error("Install ffuf using: go install github.com/ffuf/ffuf/v2@latest")
+				return
+			}
 		}
 	}
 
 	// Ensure ffufPostprocessing is installed
-	_, err = exec.LookPath("ffufPostprocessing")
-	if err != nil {
-		logrus.Error("ffufPostprocessing is not installed.")
+	// Check if ffufPostprocessingPath is set
+	if cmd.Flag("ffufPostprocessing").Changed {
+		_, err = exec.LookPath(ffufPostprocessingPath)
+		if err != nil {
+			logrus.Errorf("ffufPostprocessing is not installed in %s", ffufPostprocessingPath)
+		} else {
+			_, err = exec.LookPath("ffufPostprocessing")
+			if err != nil {
+				logrus.Error("ffufPostprocessing is not installed.")
 
-		// Try to install ffufPostprocessing
-		logrus.Info("Trying to install ffufPostprocessing...")
-		cmd := exec.Command("go", "install", "github.com/Damian89/ffufPostprocessing@latest")
-		if err := cmd.Run(); err != nil {
-			logrus.Errorf("Error installing ffufPostprocessing: %v", err)
-			logrus.Error("Install ffufPostprocessing using:  go install github.com/Damian89/ffufPostprocessing@latest")
-			return
+				// Try to install ffufPostprocessing
+				logrus.Info("Trying to install ffufPostprocessing...")
+				cmd := exec.Command("go", "install", "github.com/Damian89/ffufPostprocessing@latest")
+				if err := cmd.Run(); err != nil {
+					logrus.Errorf("Error installing ffufPostprocessing: %v", err)
+					logrus.Error("Install ffufPostprocessing using:  go install github.com/Damian89/ffufPostprocessing@latest")
+					return
+				}
+			}
 		}
 	}
 
@@ -142,7 +164,7 @@ func runCommand(cmd *cobra.Command, args []string) {
 		url := scanner.Text()
 		sem <- true
 		wg.Add(1)
-		go runFFUF(url, outputDir, wordlistPath, configFile, stdout, quiet, &wg, sem)
+		go runFFUF(url, outputDir, wordlistPath, configFile, stdout, quiet, ffufPath, ffufPostprocessingPath, &wg, sem)
 	}
 
 	wg.Wait()

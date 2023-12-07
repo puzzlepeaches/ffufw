@@ -3,3 +3,5 @@ vendor
 output/
 *.txt
 .vscode/
+launch.json
+settings.json

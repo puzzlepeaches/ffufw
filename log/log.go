@@ -47,6 +47,10 @@ func NewLogger(cfg config.Provider) *logrus.Logger {
 	return newLogrusLogger(cfg)
 }
 
+func SetDefaultLevel(level logrus.Level) {
+	defaultLogger.SetLevel(level)
+}
+
 func newLogrusLogger(cfg config.Provider) *logrus.Logger {
 
 	l := logrus.New()

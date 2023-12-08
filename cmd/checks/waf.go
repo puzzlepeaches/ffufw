@@ -7,7 +7,6 @@ import (
 
 	valid "github.com/asaskevich/govalidator"
 	cdn "github.com/projectdiscovery/cdncheck"
-	"github.com/sirupsen/logrus"
 )
 
 func extractHostname(host string) (string, error) {
@@ -54,10 +53,7 @@ func CheckWaf(url string) (string, error) {
 		return "", err
 	}
 	if matched {
-		logrus.Infof("WAF detected for URL: %s", url)
-		logrus.Debugf("WAF %s found for URL %s", val, url)
 		return val, nil
 	}
-	logrus.Debugf("No WAF detected for URL: %s", url)
 	return "", nil
 }

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -75,41 +74,37 @@ var rootCmd = &cobra.Command{
 
 		urls = removMicrosoftUrls(urls)
 
-		if excludeWaf {
-			for _, url := range urls {
-				waf, err := checks.CheckWaf(url)
-				if err != nil {
-					logrus.Debugf("Error checking WAF: %s", err)
-				}
-				if waf != "" {
-					logrus.Infof("WAF detected for URL: %s", url)
-					// Remove the URL from the slice
-					urls = remove(urls, url)
-				} else {
-					logrus.Debugf("No WAF detected for URL: %s", url)
-				}
-			}
-		}
-
 		urlChan := make(chan string, concurrency)
-		// errChan := make(chan error, concurrency)
 		errChan := make(chan error, len(urls))
-		urlsBeingScanned := make(map[string]bool)
 
-		var mutex = sync.Mutex{}
+		go func() {
+			for _, url := range urls {
+				urlChan <- url
+			}
+			close(urlChan)
+		}()
+
+		var wg sync.WaitGroup
+		wg.Add(concurrency)
 
 		for i := 0; i < concurrency; i++ {
 			go func() {
+				defer wg.Done()
 				for url := range urlChan {
-					// Check if the URL is already being scanned
-					mutex.Lock()
-					if urlsBeingScanned[url] {
-						mutex.Unlock()
-						continue
-					}
-					urlsBeingScanned[url] = true
-					mutex.Unlock()
 
+					if excludeWaf {
+						waf, err := checks.CheckWaf(url)
+						if err != nil {
+							logrus.Debugf("Error checking WAF: %s", err)
+							continue
+						}
+						if waf != "" {
+							logrus.Infof("WAF detected for URL: %s", url)
+							continue
+						} else {
+							logrus.Debugf("No WAF detected for URL: %s", url)
+						}
+					}
 					fingerprints, err := detectTech(url)
 					if err != nil {
 						errChan <- err
@@ -158,50 +153,17 @@ var rootCmd = &cobra.Command{
 						endTime := time.Now()
 						logrus.Infof("Finished scanning: %s [Duration: %s]", url, endTime.Sub(startTime))
 					}
-
-					// After processing the URL, remove it from the map
-					mutex.Lock()
-					delete(urlsBeingScanned, url)
-					mutex.Unlock()
 				}
 			}()
 		}
-		for _, url := range urls {
-			select {
-			case err := <-errChan:
-				// Handling timeout errors
-				if strings.Contains(err.Error(), "Client.Timeout exceeded while awaiting headers") {
-					logrus.Debugf("Timeout error: %s", err)
-					// TODO: Remove URL from map
-					continue
-				} else {
-					logrus.Errorf("Error running FFUF: %s", err)
-					continue
-				}
-			default:
-				urlChan <- url
-			}
-		}
 
-		close(urlChan)
+		go func() {
+			wg.Wait()
+			close(errChan)
+		}()
 
-		// Handle errors
-		// for i := 0; i < len(urls); i++ {
-		// 	err := <-errChan
-		// 	if err != nil {
-		// 		logrus.Errorf("Error running FFUF: %s", err)
-		// 		continue
-		// 	}
-		// }
-		// Use a select statement to attempt to read from the errChan channel
-		for i := 0; i < len(urls); i++ {
-			select {
-			case err := <-errChan:
-				logrus.Errorf("Error running FFUF: %s", err)
-				continue
-				// default:
-				// break
-			}
+		for err := range errChan {
+			logrus.Errorf("Error running FFUF: %s", err)
 		}
 	},
 }

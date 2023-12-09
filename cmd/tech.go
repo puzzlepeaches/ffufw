@@ -110,8 +110,33 @@ func detectTech(url string) ([]string, error) {
 
 	definedStruct := defineStruct(url, fingerprintsString)
 
-	logrus.Debugf("Detected technologies raw: %+v", definedStruct)
+	techDetected := []string{}
+	techMapping := map[string]bool{
+		"IIS":    definedStruct.iis,
+		"Apache": definedStruct.apache,
+		"Nginx":  definedStruct.nginx,
+		"PHP":    definedStruct.php,
+		"Java":   definedStruct.java,
+		"Python": definedStruct.python,
+		"API":    definedStruct.api,
+		"SAP":    definedStruct.sap,
+		"Ruby":   definedStruct.ruby,
+		"Adobe":  definedStruct.adobe,
+	}
 
+	for tech, detected := range techMapping {
+		if detected {
+			techDetected = append(techDetected, tech)
+		}
+	}
+
+	if len(techDetected) > 0 {
+		logrus.Infof("Detected Technologies for URL [%s]: %v", definedStruct.url, techDetected)
+	} else {
+		logrus.Infof("No Detected Technologies [%s]", definedStruct.url)
+	}
+
+	logrus.Debugf("Detected Technologies for URL [%s]: %v", definedStruct.url, techDetected)
 	return fingerprintsString, nil
 
 }

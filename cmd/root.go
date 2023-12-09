@@ -96,10 +96,11 @@ var rootCmd = &cobra.Command{
 						waf, err := checks.CheckWaf(url)
 						if err != nil {
 							logrus.Debugf("Error checking WAF: %s", err)
-							continue
 						}
 						if waf != "" {
 							logrus.Infof("WAF detected for URL: %s", url)
+							// Remove the URL from the slice
+							urls = remove(urls, url)
 							continue
 						} else {
 							logrus.Debugf("No WAF detected for URL: %s", url)
@@ -148,11 +149,13 @@ var rootCmd = &cobra.Command{
 									continue
 								}
 							}
+							logrus.Infof("Submitted %d URLs to gowitness", len(results))
 
 						}
 						endTime := time.Now()
 						logrus.Infof("Finished scanning: %s [Duration: %s]", url, endTime.Sub(startTime))
 					}
+
 				}
 			}()
 		}

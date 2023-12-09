@@ -1,6 +1,6 @@
 <h1 align="center">ffufw</h1>
 
-<h3 align="center">A ffuf with special sauce</h3>
+<h3 align="center">ffuf with that special sauce</h3>
 
 ## Install
 
@@ -9,16 +9,14 @@ go install github.com/puzzlepeaches/ffufw@latest
 ```
 
 ## Why? 
-ffuf by default isn't great at handling multiple URLs and detecting junk URL paths. This tool aims to fix that by providing a wrapper around ffuf that will handle the following:
-
 `ffufw` is a wrapper around ffuf to make directory bruteforcing easier and more intelligent. The tool has the following features:
 
 * Multithreaded execution of ffuf commands for a list of URLs
 * Dynamic detection of technologies using gowappalyzer
-* Dynamic generation of ffuf commands based on detected technologies
+* Dynamic generation of ffuf commands based on detected technologies (includes custom wordlists and extensions)
 * Parsing of ffuf output to remove junk and identify potentially interesting endpoints
 * The ability to pass discovered URLs to gowitness for review 
-* The ability to URLs utilizing a WAF from the scan 
+* The ability to exclude URLs utilizing a WAF from the scan 
 
 ## Getting started
 

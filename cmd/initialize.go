@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"crypto/tls"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"time"
 
 	valid "github.com/asaskevich/govalidator"
 	log "github.com/puzzlepeaches/ffufw/log"
@@ -142,5 +144,44 @@ func checkFfufConfig(configFile string) {
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		logrus.Errorf("Could not find config file at %s", configFile)
 		logrus.Debug("Continuing without config file")
+	}
+}
+
+func checkReplayProxy(replayProxy string) {
+	if replayProxy != "" {
+		if !valid.IsRequestURL(replayProxy) {
+			logrus.Fatalf("Invalid URL for replay proxy at %s", replayProxy)
+		}
+	}
+
+	// Check if an HTTP proxy is accessible at the replayProxy address
+	if replayProxy != "" {
+
+		proxyURL, err := url.Parse(replayProxy)
+		if err != nil {
+			logrus.Fatalf("Could not parse replay proxy URL: %s", replayProxy)
+		}
+
+		// Create a new HTTP client with the proxy, a timeout, and disable SSL verification
+		client := &http.Client{
+			Transport: &http.Transport{
+				Proxy:           http.ProxyURL(proxyURL),
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+			Timeout: time.Second * 10,
+		}
+
+		// Send a GET request to the proxy
+		resp, err := client.Get("https://httpbin.org/status/200")
+		if err != nil {
+			logrus.Debug(err)
+			logrus.Fatalf("Could not reach proxy at %s", replayProxy)
+		}
+		defer resp.Body.Close()
+
+		// Check the status code
+		if resp.StatusCode != http.StatusOK {
+			logrus.Fatalf("Unexpected status code from proxy at %s: %d", replayProxy, resp.StatusCode)
+		}
 	}
 }

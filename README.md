@@ -72,6 +72,7 @@ Flags:
   -i, --input string                Specify the list of URLs to scan
   -o, --output string               Specify the output directory for FFUF results
   -q, --quiet                       Enable silent mode (no additional information printed)
+  -r, --replay-proxy string         Specify the address for a replay proxy. Ensure format is http://<ip>:<port>
   -v, --verbose                     Enable verbose mode (print additional information)
 
 Use "ffufw [command] --help" for more information about a command.
@@ -109,12 +110,19 @@ Basic usage with gowitness, verbose output and WAF exclusion:
 ffufw -o /tmp/output/ -i /tmp/urls.txt -c /opt/.ffufrc -v -e -g http://127.0.0.1:9000
 ```
 
+Basic usage with 5 threads and submission to a replay proxy (Burp, Zap, etc):
+
+```
+ffufw -o /tmp/output/ -i /tmp/urls.txt -c /opt/.ffufrc -t 5 -r http://127.0.0.1:8080
+```
+
 ## TODO
 
 - Support for custom wordlists
 - Refactor to support easy additions of technology check additions
 - Ability to ignore certain technologies
 - Ability to specify single wordlists for all URLs
+- Better logging and error handling
 
 
 ## References & Thanks 

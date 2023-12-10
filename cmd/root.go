@@ -25,6 +25,7 @@ var (
 	quiet                  bool
 	verbose                bool
 	excludeWaf             bool
+	replayProxy            string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -57,6 +58,7 @@ var rootCmd = &cobra.Command{
 		checkInput(inputFile)
 		checkFfufConfig(configFile)
 		checkGowitness(gowitnessAddress)
+		checkReplayProxy(replayProxy)
 
 		// Create wordlist directory and get all wordlists
 		createWordlistDir()
@@ -144,14 +146,29 @@ var rootCmd = &cobra.Command{
 								continue
 							}
 							for _, result := range results {
-								if err := process.SubmitURL(gowitnessAddress, result); err != nil {
+								if err := process.SubmitGowitness(gowitnessAddress, result); err != nil {
 									errChan <- err
 									continue
 								}
 							}
 							logrus.Infof("Submitted %d URLs to gowitness", len(results))
-
 						}
+
+						if replayProxy != "" {
+							results, err := process.ParseOutput(outputFile)
+							if err != nil {
+								errChan <- err
+								continue
+							}
+							for _, result := range results {
+								if err := process.SubmitReplayProxy(replayProxy, result); err != nil {
+									errChan <- err
+									continue
+								}
+							}
+							logrus.Infof("Submitted %d URLs to replay proxy", len(results))
+						}
+
 						endTime := time.Now()
 						logrus.Infof("Finished scanning: %s [Duration: %s]", url, endTime.Sub(startTime))
 					}
@@ -187,6 +204,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&configFile, "config", "c", "~/.ffufrc", "Specify the config file for FFUF")
 	rootCmd.Flags().StringVarP(&gowitnessAddress, "gowitness", "g", "", "Specify the address for the gowitness API. Ensure format is http://<ip>:<port>")
 	rootCmd.Flags().BoolVarP(&excludeWaf, "exclude-waf", "e", false, "Exclude WAFs from the scans.")
+	rootCmd.Flags().StringVarP(&replayProxy, "replay-proxy", "r", "", "Specify the address for a replay proxy. Ensure format is http://<ip>:<port>")
 
 	// Define paths for binary files
 	rootCmd.Flags().StringVarP(&ffufPath, "ffuf", "", "ffuf", "Specify the path to the ffuf binary")

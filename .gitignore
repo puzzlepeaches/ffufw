@@ -2,6 +2,5 @@ bin
 vendor
 output/
 *.txt
-.vscode/
-launch.json
-settings.json
+.vscode
+!.vscode/launch.json

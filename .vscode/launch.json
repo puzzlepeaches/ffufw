@@ -13,7 +13,7 @@
                 "-i",
                 "/tmp/targets.txt",
                 "-c",
-                "/Users/ed/.ffufrc",
+                "~/ed/.ffufrc",
                 "-v",
                 "-e",
                 "-g",

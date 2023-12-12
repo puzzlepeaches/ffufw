@@ -28,6 +28,15 @@ var (
 	replayProxy            string
 )
 
+type urlError struct {
+	url string
+	err error
+}
+
+func (e *urlError) Error() string {
+	return fmt.Sprintf("Error running FFUF: %s [URL: %s]", e.err, e.url)
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "ffufw [flags] -i <input file> -o <output directory>",
@@ -110,7 +119,7 @@ var rootCmd = &cobra.Command{
 					}
 					fingerprints, err := detectTech(url)
 					if err != nil {
-						errChan <- err
+						errChan <- &urlError{url: url, err: err}
 						continue
 					}
 
@@ -123,7 +132,7 @@ var rootCmd = &cobra.Command{
 					command := ffuf.CraftCommand(ffufInstance)
 					techCommands, err := ffuf.TechCommands(ffufInstance, command, url)
 					if err != nil {
-						errChan <- err
+						errChan <- &urlError{url: url, err: err}
 						continue
 					}
 					for _, techCommand := range techCommands {
@@ -131,23 +140,23 @@ var rootCmd = &cobra.Command{
 						logrus.Infof("Started scanning: %s", url)
 						logrus.Debugf("Running command: %s", techCommand)
 						if err := ffuf.RunFfuf(ffufInstance, techCommand); err != nil {
-							errChan <- err
+							errChan <- &urlError{url: url, err: err}
 							continue
 						}
 						outputFile, err := ffuf.RunPostProcessing(ffufInstance, techCommand)
 						if err != nil {
-							errChan <- err
+							errChan <- &urlError{url: url, err: err}
 							continue
 						}
 						if gowitnessAddress != "" {
 							results, err := process.ParseOutput(outputFile)
 							if err != nil {
-								errChan <- err
+								errChan <- &urlError{url: url, err: err}
 								continue
 							}
 							for _, result := range results {
 								if err := process.SubmitGowitness(gowitnessAddress, result); err != nil {
-									errChan <- err
+									errChan <- &urlError{url: url, err: err}
 									continue
 								}
 							}
@@ -157,12 +166,12 @@ var rootCmd = &cobra.Command{
 						if replayProxy != "" {
 							results, err := process.ParseOutput(outputFile)
 							if err != nil {
-								errChan <- err
+								errChan <- &urlError{url: url, err: err}
 								continue
 							}
 							for _, result := range results {
 								if err := process.SubmitReplayProxy(replayProxy, result); err != nil {
-									errChan <- err
+									errChan <- &urlError{url: url, err: err}
 									continue
 								}
 							}
@@ -183,7 +192,13 @@ var rootCmd = &cobra.Command{
 		}()
 
 		for err := range errChan {
-			logrus.Errorf("Error running FFUF: %s", err)
+			urlErr, ok := err.(*urlError)
+			if ok {
+				logrus.Errorf("Error running FFUF: %s [URL: %s]", urlErr.err, urlErr.url)
+			} else {
+				logrus.Errorf("Error running FFUF: %s", err)
+			}
+
 		}
 	},
 }

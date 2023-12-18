@@ -35,7 +35,7 @@ go install github.com/puzzlepeaches/ffufw@latest
 The following tools are required for the tool to run:
 
 * [ffuf](https://github.com/ffuf/ffuf)
-* [ffufPostProcessing](https://github.com/Damian89/ffufPostprocessin)
+* [ffufPostProcessing](https://github.com/Damian89/ffufPostprocessing)
 
 Install the requirements using the following commands:
 

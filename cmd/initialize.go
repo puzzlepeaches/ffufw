@@ -154,8 +154,8 @@ func checkInput(inputFile string) {
 func checkFfufConfig(configFile string) {
 	configFile = expandPath(configFile)
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		logrus.Errorf("Could not find config file at %s", configFile)
-		logrus.Debug("Continuing without config file")
+		logrus.Infof("Could not find config file at %s", configFile)
+		logrus.Info("Continuing without config file")
 	}
 }
 
@@ -183,8 +183,13 @@ func checkReplayProxy(replayProxy string) {
 			Timeout: time.Second * 10,
 		}
 
-		// Send a GET request to the proxy
-		resp, err := client.Get("https://httpbin.org/status/200")
+		// Send an OPTIONS request to the proxy itself
+		req, err := http.NewRequest(http.MethodOptions, replayProxy, nil)
+		if err != nil {
+			logrus.Fatalf("Could not create request to %s", replayProxy)
+		}
+
+		resp, err := client.Do(req)
 		if err != nil {
 			logrus.Debug(err)
 			logrus.Fatalf("Could not reach proxy at %s", replayProxy)

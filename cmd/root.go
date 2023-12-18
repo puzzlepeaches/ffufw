@@ -148,35 +148,41 @@ var rootCmd = &cobra.Command{
 							errChan <- &urlError{url: url, err: err}
 							continue
 						}
-						if gowitnessAddress != "" {
-							results, err := process.ParseOutput(outputFile)
-							if err != nil {
-								errChan <- &urlError{url: url, err: err}
-								continue
-							}
-							for _, result := range results {
-								if err := process.SubmitGowitness(gowitnessAddress, result); err != nil {
-									errChan <- &urlError{url: url, err: err}
-									continue
-								}
-							}
-							logrus.Infof("Submitted %d URLs to gowitness", len(results))
-						}
 
-						if replayProxy != "" {
-							results, err := process.ParseOutput(outputFile)
-							if err != nil {
-								errChan <- &urlError{url: url, err: err}
-								continue
+						// Wait for ffufpostprocessing to finish before submitting to gowitness or replayproxy
+						ffufPostProcessingDone := make(chan bool)
+						go func() {
+							for !<-ffufPostProcessingDone {
 							}
-							for _, result := range results {
-								if err := process.SubmitReplayProxy(replayProxy, result); err != nil {
+							if gowitnessAddress != "" {
+								results, err := process.ParseOutput(outputFile)
+								if err != nil {
 									errChan <- &urlError{url: url, err: err}
-									continue
 								}
+								for _, result := range results {
+									if err := process.SubmitGowitness(gowitnessAddress, result); err != nil {
+										errChan <- &urlError{url: url, err: err}
+										continue
+									}
+								}
+								logrus.Infof("Submitted %d URLs to gowitness", len(results))
 							}
-							logrus.Infof("Submitted %d URLs to replay proxy", len(results))
-						}
+
+							if replayProxy != "" {
+								results, err := process.ParseOutput(outputFile)
+								if err != nil {
+									errChan <- &urlError{url: url, err: err}
+								}
+								for _, result := range results {
+									if err := process.SubmitReplayProxy(replayProxy, result); err != nil {
+										errChan <- &urlError{url: url, err: err}
+										continue
+									}
+								}
+								logrus.Infof("Submitted %d URLs to replay proxy", len(results))
+							}
+						}()
+						ffufPostProcessingDone <- true
 
 						endTime := time.Now()
 						logrus.Infof("Finished scanning: %s [Duration: %s]", url, endTime.Sub(startTime))

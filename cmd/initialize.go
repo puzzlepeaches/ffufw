@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	valid "github.com/asaskevich/govalidator"
@@ -97,6 +98,17 @@ func checkOutput(outputDir string) {
 
 func createWordlistDir() {
 	path := expandPath("~/.ffufw/wordlists")
+
+	// Create parent directory if it doesn't exist
+	parentDir := filepath.Dir(path)
+	if _, err := os.Stat(parentDir); os.IsNotExist(err) {
+		err := os.Mkdir(parentDir, 0755)
+		if err != nil {
+			logrus.Fatalf("Could not create parent directory at %s", parentDir)
+		}
+	}
+
+	// Create wordlist directory if it doesn't exist
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		logrus.Debugf("Creating wordlist directory at %s", path)
 

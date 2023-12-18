@@ -44,7 +44,7 @@ go install github.com/Damian89/ffufPostprocessing@latest
 go install github.com/ffuf/ffuf/v2@latest
 ```
 
-Wordlists if not already present on your system will be downloaded on first run to the director `~/.ffufw/wordlists/`. For a list of all wordlists downloaded, see `cmd/wordlists/storage.go`. Custom wordlists are not currently supported.
+Wordlists, if not already present on your system will be downloaded on the first run to the directory `~/.ffufw/wordlists/`. For a list of all wordlists downloaded, see `cmd/wordlists/storage.go`. Custom wordlists are not currently supported.
 
 ## Usage
 
@@ -59,7 +59,7 @@ Usage:
 
 Available Commands:
   help        Help about any command
-  version     Print the version number of generated code example
+  version     Print the version number of the generated code example
 
 Flags:
   -t, --concurrency int             Set the concurrency level for scanning (default 3)
@@ -86,7 +86,7 @@ Very basic usage of the tool with a custom ffuf config file and verbose output:
 ffufw -o /tmp/output/ -i /tmp/targets.txt -c /opt/.ffufrc -v
 ```
 
-Basic usage with output being shipped to gowitness:
+Basic usage with the output being shipped to gowitness:
 
 ```
 ffufw -o /tmp/output/ -i /tmp/targets.txt -g http://127.0.0.1:9999
@@ -104,7 +104,7 @@ Usage with custom concurrency (number of URLs to scan at once):
 ffufw -o /tmp/output/ -i /tmp/targets.txt -c /opt/.ffufrc -t 5
 ```
 
-Basic usage with gowitness, verbose output and WAF exclusion:
+Basic usage with gowitness, verbose output, and WAF exclusion:
 
 ```
 ffufw -o /tmp/output/ -i /tmp/urls.txt -c /opt/.ffufrc -v -e -g http://127.0.0.1:9000

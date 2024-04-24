@@ -44,7 +44,7 @@ go install github.com/Damian89/ffufPostprocessing@latest
 go install github.com/ffuf/ffuf/v2@latest
 ```
 
-Wordlists, if not already present on your system will be downloaded on the first run to the directory `~/.ffufw/wordlists/`. For a list of all wordlists downloaded, see `cmd/wordlists/storage.go`. Custom wordlists are not currently supported.
+Wordlists, if not already present on your system will be downloaded on the first run to the directory `~/.ffufw/wordlists/`. For a list of all wordlists downloaded, see `cmd/wordlists/storage.go`. A single custom wordlist is also supported and can be specified using the `-w` flag.
 
 ## Usage
 
@@ -59,11 +59,12 @@ Usage:
 
 Available Commands:
   help        Help about any command
-  version     Print the version number of the generated code example
+  version     Print the version number of generated code example
 
 Flags:
   -t, --concurrency int             Set the concurrency level for scanning (default 3)
   -c, --config string               Specify the config file for FFUF (default "~/.ffufrc")
+  -w, --custom-wordlist string      Specify a custom wordlist to use for scanning. This disable technology detection and pre-defined wordlists for all URLs.
   -e, --exclude-waf                 Exclude WAFs from the scans.
       --ffuf string                 Specify the path to the ffuf binary (default "ffuf")
       --ffufPostprocessing string   Specify the path to the ffufPostprocessing binary (default "ffufPostprocessing")
@@ -118,11 +119,9 @@ ffufw -o /tmp/output/ -i /tmp/urls.txt -c /opt/.ffufrc -t 5 -r http://127.0.0.1:
 
 ## TODO
 
-- Support for custom wordlists
 - Refactor to support easy additions of technology check additions
 - Ability to ignore certain technologies
 - Ability to add custom technologies
-- Ability to specify single wordlists for all URLs for quick scans
 - Better logging and error handling
 
 

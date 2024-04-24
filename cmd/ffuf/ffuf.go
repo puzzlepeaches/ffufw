@@ -108,7 +108,7 @@ func NewFFUF(url string, technologies TechData, concurrency int, outputDir strin
 	return ffufInstance, nil
 }
 
-func TechCommands(ffufInstance *FFUF, command string, url string) ([]string, error) {
+func TechCommands(ffufInstance *FFUF, command string, url string, customWordlist string) ([]string, error) {
 
 	// Define the command
 	techCommands := []string{}
@@ -135,69 +135,78 @@ func TechCommands(ffufInstance *FFUF, command string, url string) ([]string, err
 	// Define a map for non-tech wordlists
 	nonTechCommands := []string{}
 
-	for tech, enabled := range ffufInstance.Tech {
-		if enabled {
-			// Define the tech folder and wordlist path
-			folderName := strings.ToLower(tech)
-			techWordlistPath := filepath.Join(wordlistPath, folderName)
+	if customWordlist != "" {
+		// Construct command for custom wordlist
+		customCommand := command + " -w " + customWordlist + " -of json" + " -od " + ffufInstance.URL.outputDir + " -o " + ffufInstance.URL.outputDir + "/results.custom.json"
+		techCommands = append(techCommands, customCommand)
+	} else {
 
-			// Construct commands for each wordlist
-			for _, wordlist := range techWordlists[tech] {
-				wordlistFile := filepath.Join(techWordlistPath, wordlist.Name) + ".txt"
-				outputFile := ffufInstance.URL.outputDir + "/results." + wordlist.Name + ".json"
+		for tech, enabled := range ffufInstance.Tech {
+			if enabled {
+				// Define the tech folder and wordlist path
+				folderName := strings.ToLower(tech)
+				techWordlistPath := filepath.Join(wordlistPath, folderName)
 
-				techCommand := command + " -w " + wordlistFile + " -of json -od " + ffufInstance.URL.outputDir + " -o " + outputFile
+				// Construct commands for each wordlist
+				for _, wordlist := range techWordlists[tech] {
+					wordlistFile := filepath.Join(techWordlistPath, wordlist.Name) + ".txt"
+					outputFile := ffufInstance.URL.outputDir + "/results." + wordlist.Name + ".json"
+
+					techCommand := command + " -w " + wordlistFile + " -of json -od " + ffufInstance.URL.outputDir + " -o " + outputFile
+					techCommands = append(techCommands, techCommand)
+				}
+
+				// Define the extension based on the tech
+				var extension string
+				switch tech {
+				case "Iis":
+					extension = ".aspx,.asp"
+				case "Php":
+					extension = ".php"
+				case "Java":
+					extension = ".jsp"
+				case "Python":
+					extension = ".py,.pyc"
+				case "Ruby":
+					extension = ".rb"
+				case "Api":
+					extension = ".json,.yaml"
+				default:
+					continue
+				}
+
+				// Construct command for the raft-large-words wordlist
+				wordlistFile := filepath.Join(wordlistPath, "misc", "raft-large-words.txt")
+				outputFile := ffufInstance.URL.outputDir + "/results.raft-large-words.json"
+
+				techCommand := command + " -w " + wordlistFile + "-e " + extension + " -of json -od " + ffufInstance.URL.outputDir + " -o " + outputFile
 				techCommands = append(techCommands, techCommand)
 			}
+		}
 
-			// Define the extension based on the tech
-			var extension string
-			switch tech {
-			case "Iis":
-				extension = ".aspx,.asp"
-			case "Php":
-				extension = ".php"
-			case "Java":
-				extension = ".jsp"
-			case "Python":
-				extension = ".py,.pyc"
-			case "Ruby":
-				extension = ".rb"
-			case "Api":
-				extension = ".json,.yaml"
-			default:
+		// Construct non-tech wordlists only once
+		for _, wordlist := range wordlists.MiscWordlists {
+
+			// Skip raft-large-words
+			// TODO I don't remember why I did this
+			if wordlist.Name == "raft-large-words" {
 				continue
 			}
 
-			// Construct command for the raft-large-words wordlist
-			wordlistFile := filepath.Join(wordlistPath, "misc", "raft-large-words.txt")
-			outputFile := ffufInstance.URL.outputDir + "/results.raft-large-words.json"
+			// Construct wordlist path
+			techWordlistPath := filepath.Join(wordlistPath, "misc", wordlist.Name) + ".txt"
 
-			techCommand := command + " -w " + wordlistFile + "-e " + extension + " -of json -od " + ffufInstance.URL.outputDir + " -o " + outputFile
-			techCommands = append(techCommands, techCommand)
-		}
-	}
+			// Construct command for each wordlist from original
+			techCommand := command + " -w " + techWordlistPath + " -of json" + " -od " + ffufInstance.URL.outputDir + " -o " + ffufInstance.URL.outputDir + "/results." + wordlist.Name + ".json"
 
-	// Construct non-tech wordlists only once
-	for _, wordlist := range wordlists.MiscWordlists {
+			// Append command to nonTechCommands
+			nonTechCommands = append(nonTechCommands, techCommand)
 
-		if wordlist.Name == "raft-large-words" {
-			continue
 		}
 
-		// Construct wordlist path
-		techWordlistPath := filepath.Join(wordlistPath, "misc", wordlist.Name) + ".txt"
-
-		// Construct command for each wordlist from original
-		techCommand := command + " -w " + techWordlistPath + " -of json" + " -od " + ffufInstance.URL.outputDir + " -o " + ffufInstance.URL.outputDir + "/results." + wordlist.Name + ".json"
-
-		// Append command to nonTechCommands
-		nonTechCommands = append(nonTechCommands, techCommand)
-
+		// Append non-tech commands to techCommands
+		techCommands = append(techCommands, nonTechCommands...)
 	}
-
-	// Append non-tech commands to techCommands
-	techCommands = append(techCommands, nonTechCommands...)
 
 	return techCommands, nil
 
@@ -206,6 +215,7 @@ func TechCommands(ffufInstance *FFUF, command string, url string) ([]string, err
 func CraftCommand(ffufInstance *FFUF) string {
 
 	// Define the command
+	// command := ffufInstance.FFUFPath + " -u " + ffufInstance.URL.fuzzUrl + " -mc all "
 	command := ffufInstance.FFUFPath + " -u " + ffufInstance.URL.fuzzUrl
 
 	if ffufInstance.configFile != "" {
@@ -239,10 +249,6 @@ func RunPostProcessing(ffufInstance *FFUF, techCommand string) (string, error) {
 	// Get wordlist name from output file
 	wordlistName := strings.Split(outputFile, "/")[len(strings.Split(outputFile, "/"))-1]
 	wordlistName = strings.TrimSuffix(wordlistName, filepath.Ext(wordlistName))
-
-	// Extract the string between "results." and ".json"
-	// Fix: Extract the string after "results." and before the last "."
-	// wordlistName = strings.Split(strings.Split(wordlistName, "results.")[1], ".")[0]
 
 	// Define the command
 	command := ffufInstance.FFUFPostprocessingPath +

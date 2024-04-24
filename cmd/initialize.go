@@ -47,6 +47,15 @@ func checkBinary(path string, name string) string {
 
 }
 
+func checkCustomWordlist(customWordlist string) {
+	// Expand the path and check if custom wordlist exists
+	customWordlist = expandPath(customWordlist)
+	_, err := os.Stat(customWordlist)
+	if os.IsNotExist(err) {
+		logrus.Fatalf("Could not find custom wordlist at %s", customWordlist)
+	}
+}
+
 func checkGowitness(address string) {
 	if address != "" {
 		if !valid.IsRequestURL(address) {

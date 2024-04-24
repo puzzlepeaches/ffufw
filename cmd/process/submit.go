@@ -86,6 +86,7 @@ func SubmitReplayProxy(replayProxy string, result string) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		logrus.Errorf("Error sending request to replay proxy: %s", err)
+		return err
 	}
 	defer resp.Body.Close()
 

@@ -122,7 +122,7 @@ ffufw -o /tmp/output/ -i /tmp/urls.txt -c /opt/.ffufrc -t 5 -r http://127.0.0.1:
 - Refactor to support easy additions of technology check additions
 - Ability to ignore certain technologies
 - Ability to add custom technologies
-- Ability to specify single wordlists for all URLs
+- Ability to specify single wordlists for all URLs for quick scans
 - Better logging and error handling
 
 

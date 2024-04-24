@@ -26,6 +26,8 @@ var (
 	verbose                bool
 	excludeWaf             bool
 	replayProxy            string
+	customWordlist         string
+	customWordlistPath     string
 )
 
 type urlError struct {
@@ -68,6 +70,9 @@ var rootCmd = &cobra.Command{
 		checkFfufConfig(configFile)
 		checkGowitness(gowitnessAddress)
 		checkReplayProxy(replayProxy)
+		if customWordlist != "" {
+			checkCustomWordlist(customWordlist)
+		}
 
 		// Create wordlist directory and get all wordlists
 		createWordlistDir()
@@ -117,6 +122,7 @@ var rootCmd = &cobra.Command{
 							logrus.Debugf("No WAF detected for URL: %s", url)
 						}
 					}
+
 					fingerprints, err := detectTech(url)
 					if err != nil {
 						errChan <- &urlError{url: url, err: err}
@@ -130,7 +136,14 @@ var rootCmd = &cobra.Command{
 						continue
 					}
 					command := ffuf.CraftCommand(ffufInstance)
-					techCommands, err := ffuf.TechCommands(ffufInstance, command, url)
+
+					if customWordlist != "" {
+						customWordlistPath = expandPath(customWordlist)
+					} else {
+						customWordlistPath = ""
+					}
+
+					techCommands, err := ffuf.TechCommands(ffufInstance, command, url, customWordlistPath)
 					if err != nil {
 						errChan <- &urlError{url: url, err: err}
 						continue
@@ -226,6 +239,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&gowitnessAddress, "gowitness", "g", "", "Specify the address for the gowitness API. Ensure format is http://<ip>:<port>")
 	rootCmd.Flags().BoolVarP(&excludeWaf, "exclude-waf", "e", false, "Exclude WAFs from the scans.")
 	rootCmd.Flags().StringVarP(&replayProxy, "replay-proxy", "r", "", "Specify the address for a replay proxy. Ensure format is http://<ip>:<port>")
+	rootCmd.Flags().StringVarP(&customWordlist, "custom-wordlist", "w", "", "Specify a custom wordlist to use for scanning. This disable technology detection and pre-defined wordlists for all URLs.")
 
 	// Define paths for binary files
 	rootCmd.Flags().StringVarP(&ffufPath, "ffuf", "", "ffuf", "Specify the path to the ffuf binary")

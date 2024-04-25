@@ -10,18 +10,18 @@ var MiscWordlists = []Wordlist{
 	// 	Name: "leaky-paths",
 	// 	URL:  "https://raw.githubusercontent.com/ayoubfathi/leaky-paths/main/leaky-paths.txt",
 	// },
-	{
-		Name: "assetnote-txt",
-		URL:  "https://wordlists-cdn.assetnote.io/data/automated/httparchive_txt_2023_10_28.txt",
-	},
-	{
-		Name: "assetnote-xml",
-		URL:  "https://wordlists-cdn.assetnote.io/data/automated/httparchive_xml_2023_10_28.txt",
-	},
-	{
-		Name: "assetnote-bak",
-		URL:  "https://wordlists-cdn.assetnote.io/data/manual/bak.txt",
-	},
+	// {
+	// 	Name: "assetnote-txt",
+	// 	URL:  "https://wordlists-cdn.assetnote.io/data/automated/httparchive_txt_2023_10_28.txt",
+	// },
+	// {
+	// 	Name: "assetnote-xml",
+	// 	URL:  "https://wordlists-cdn.assetnote.io/data/automated/httparchive_xml_2023_10_28.txt",
+	// },
+	// {
+	// 	Name: "assetnote-bak",
+	// 	URL:  "https://wordlists-cdn.assetnote.io/data/manual/bak.txt",
+	// },
 	{
 		Name: "seclists-logins",
 		URL:  "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/Logins.fuzz.txt",

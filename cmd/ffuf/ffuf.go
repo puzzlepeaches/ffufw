@@ -218,7 +218,7 @@ func CraftCommand(ffufInstance *FFUF) string {
 	// command := ffufInstance.FFUFPath + " -u " + ffufInstance.URL.fuzzUrl + " -mc all "
 	command := ffufInstance.FFUFPath + " -u " + ffufInstance.URL.fuzzUrl
 
-	if ffufInstance.configFile != "" {
+	if ffufInstance.configFile != "" || ffufInstance.configFile != "~/.ffufrc" {
 		command += " -config " + ffufInstance.configFile
 	}
 

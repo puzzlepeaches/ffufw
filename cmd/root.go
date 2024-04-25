@@ -235,7 +235,7 @@ func init() {
 
 	// Define command line arguments
 	rootCmd.Flags().IntVarP(&concurrency, "concurrency", "t", 3, "Set the concurrency level for scanning")
-	rootCmd.Flags().StringVarP(&configFile, "config", "c", "~/.ffufrc", "Specify the config file for FFUF")
+	rootCmd.Flags().StringVarP(&configFile, "config", "c", "", "Specify the config file for FFUF")
 	rootCmd.Flags().StringVarP(&gowitnessAddress, "gowitness", "g", "", "Specify the address for the gowitness API. Ensure format is http://<ip>:<port>")
 	rootCmd.Flags().BoolVarP(&excludeWaf, "exclude-waf", "e", false, "Exclude WAFs from the scans.")
 	rootCmd.Flags().StringVarP(&replayProxy, "replay-proxy", "r", "", "Specify the address for a replay proxy. Ensure format is http://<ip>:<port>")

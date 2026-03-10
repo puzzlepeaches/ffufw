@@ -7,18 +7,27 @@ import (
 	"os"
 )
 
+// Result represents a single finding from ffuf with its metadata
+type Result struct {
+	URL         string `json:"url"`
+	Status      int    `json:"status"`
+	Length      int    `json:"length"`
+	Words       int    `json:"words"`
+	Lines       int    `json:"lines"`
+	ContentType string `json:"content-type"`
+	RedirectURL string `json:"redirectlocation"`
+}
+
 type Output struct {
-	Commandline string `json:"commandline"`
-	Time        string `json:"time"`
-	Results     []struct {
-		URL string `json:"url"`
-	} `json:"results"`
-	Config struct {
+	Commandline string   `json:"commandline"`
+	Time        string   `json:"time"`
+	Results     []Result `json:"results"`
+	Config      struct {
 		URL string `json:"url"`
 	} `json:"config"`
 }
 
-func ParseOutput(outputFile string) ([]string, error) {
+func ParseOutput(outputFile string) ([]Result, error) {
 	// Open the output file
 	file, err := os.Open(outputFile)
 	if err != nil {
@@ -41,11 +50,5 @@ func ParseOutput(outputFile string) ([]string, error) {
 		return nil, fmt.Errorf("Error unmarshalling JSON: %s", err)
 	}
 
-	// Store the results in a list
-	urls := make([]string, len(output.Results))
-	for i, result := range output.Results {
-		urls[i] = result.URL
-	}
-	// Return the list of URLs
-	return urls, nil
+	return output.Results, nil
 }

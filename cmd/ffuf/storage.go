@@ -21,12 +21,20 @@ type Url struct {
 }
 
 type FFUF struct {
-	URL Url
-	// Tech                   TechData
+	URL                    Url
 	Tech                   map[string]bool
 	Concurrency            int
 	OutputDir              string
 	FFUFPath               string
 	FFUFPostprocessingPath string
 	configFile             string
+}
+
+// FfufCommand represents a single ffuf scan command with structured arguments
+type FfufCommand struct {
+	BinaryPath    string   // path to ffuf binary
+	Args          []string // command-line arguments
+	OutputFile    string   // path to the JSON output file
+	WordlistName  string   // human-readable name of the wordlist being used
+	OutputDir     string   // output directory for bodies
 }

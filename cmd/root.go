@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	checks "github.com/puzzlepeaches/ffufw/cmd/checks"
@@ -89,9 +90,16 @@ var rootCmd = &cobra.Command{
 		}
 
 		urls = removeMicrosoftUrls(urls)
+		totalURLs := len(urls)
 
 		urlChan := make(chan string, concurrency)
-		errChan := make(chan error, len(urls))
+		errChan := make(chan error, totalURLs*10)
+
+		// Progress counters
+		var urlsProcessed int64
+		var urlsSkipped int64
+		var urlsFailed int64
+		var totalFindings int64
 
 		go func() {
 			for _, url := range urls {
@@ -114,26 +122,33 @@ var rootCmd = &cobra.Command{
 							logrus.Debugf("Error checking WAF: %s", err)
 						}
 						if waf != "" {
-							logrus.Infof("WAF detected for URL: %s", url)
+							logrus.Infof("WAF detected for URL: %s [%s] - skipping", url, waf)
+							atomic.AddInt64(&urlsSkipped, 1)
 							continue
 						} else {
 							logrus.Debugf("No WAF detected for URL: %s", url)
 						}
 					}
 
+					current := atomic.AddInt64(&urlsProcessed, 1)
+					logrus.Infof("[%d/%d] Starting: %s", current, totalURLs, url)
+
 					fingerprints, err := detectTech(url)
 					if err != nil {
+						logrus.Warnf("[%d/%d] Failed tech detection: %s [%s]", current, totalURLs, url, err)
 						errChan <- &urlError{url: url, err: err}
+						atomic.AddInt64(&urlsFailed, 1)
 						continue
 					}
 
 					techData := convertTech(url, fingerprints)
 					ffufInstance, err := ffuf.NewFFUF(url, techData, concurrency, outputDir, ffufPath, ffufPostprocessingPath, configFile)
 					if err != nil {
+						logrus.Warnf("[%d/%d] Failed to initialize: %s [%s]", current, totalURLs, url, err)
 						errChan <- err
+						atomic.AddInt64(&urlsFailed, 1)
 						continue
 					}
-					command := ffuf.CraftCommand(ffufInstance)
 
 					if customWordlist != "" {
 						customWordlistPath = expandPath(customWordlist)
@@ -141,57 +156,71 @@ var rootCmd = &cobra.Command{
 						customWordlistPath = ""
 					}
 
-					techCommands, err := ffuf.TechCommands(ffufInstance, command, url, customWordlistPath)
+					techCommands, err := ffuf.TechCommands(ffufInstance, url, customWordlistPath)
 					if err != nil {
+						logrus.Warnf("[%d/%d] Failed to generate commands: %s [%s]", current, totalURLs, url, err)
 						errChan <- &urlError{url: url, err: err}
+						atomic.AddInt64(&urlsFailed, 1)
 						continue
 					}
-					for _, techCommand := range techCommands {
-						startTime := time.Now()
-						logrus.Infof("Started scanning: %s", url)
-						logrus.Debugf("Running command: %s", techCommand)
-						if err := ffuf.RunFfuf(ffufInstance, techCommand); err != nil {
+
+					// Collect all results across wordlists for deduplication
+					allResults := make(map[string]struct{})
+					urlStartTime := time.Now()
+
+					for i, techCommand := range techCommands {
+						logrus.Infof("[%d/%d] Scanning %s with %s (%d/%d wordlists)",
+							current, totalURLs, url, techCommand.WordlistName, i+1, len(techCommands))
+
+						if err := ffuf.RunFfuf(techCommand, verbose); err != nil {
+							logrus.Warnf("Failed: %s with %s [%s]", url, techCommand.WordlistName, err)
 							errChan <- &urlError{url: url, err: err}
 							continue
 						}
 						outputFile, err := ffuf.RunPostProcessing(ffufInstance, techCommand)
 						if err != nil {
+							logrus.Warnf("Post-processing failed: %s with %s [%s]", url, techCommand.WordlistName, err)
 							errChan <- &urlError{url: url, err: err}
 							continue
 						}
+
+						// Collect results for deduplication
+						results, err := process.ParseOutput(outputFile)
+						if err != nil {
+							errChan <- &urlError{url: url, err: err}
+							continue
+						}
+						for _, result := range results {
+							allResults[result.URL] = struct{}{}
+						}
+					}
+
+					// Submit deduplicated results once per URL
+					uniqueCount := len(allResults)
+					if uniqueCount > 0 {
+						atomic.AddInt64(&totalFindings, int64(uniqueCount))
 
 						if gowitnessAddress != "" {
-						results, err := process.ParseOutput(outputFile)
-						if err != nil {
-							errChan <- &urlError{url: url, err: err}
-							continue
-						}
-						for _, result := range results {
-							if err := process.SubmitGowitness(gowitnessAddress, result); err != nil {
-								errChan <- &urlError{url: url, err: err}
+							for resultURL := range allResults {
+								if err := process.SubmitGowitness(gowitnessAddress, resultURL); err != nil {
+									errChan <- &urlError{url: url, err: err}
+								}
 							}
+							logrus.Infof("Submitted %d unique URLs to gowitness for %s", uniqueCount, url)
 						}
-						logrus.Infof("Submitted %d URLs to gowitness", len(results))
-					}
 
-					if replayProxy != "" {
-						results, err := process.ParseOutput(outputFile)
-						if err != nil {
-							errChan <- &urlError{url: url, err: err}
-							continue
-						}
-						for _, result := range results {
-							if err := process.SubmitReplayProxy(replayProxy, result); err != nil {
-								errChan <- &urlError{url: url, err: err}
+						if replayProxy != "" {
+							for resultURL := range allResults {
+								if err := process.SubmitReplayProxy(replayProxy, resultURL); err != nil {
+									errChan <- &urlError{url: url, err: err}
+								}
 							}
+							logrus.Infof("Submitted %d unique URLs to replay proxy for %s", uniqueCount, url)
 						}
-						logrus.Infof("Submitted %d URLs to replay proxy", len(results))
 					}
 
-						endTime := time.Now()
-						logrus.Infof("Finished scanning: %s [Duration: %s]", url, endTime.Sub(startTime))
-					}
-
+					logrus.Infof("[%d/%d] Finished: %s [%d findings, %s]",
+						current, totalURLs, url, uniqueCount, time.Since(urlStartTime).Round(time.Second))
 				}
 			}()
 		}
@@ -201,15 +230,18 @@ var rootCmd = &cobra.Command{
 			close(errChan)
 		}()
 
-		for err := range errChan {
-			urlErr, ok := err.(*urlError)
-			if ok {
-				logrus.Errorf("Error running FFUF: %s [URL: %s]", urlErr.err, urlErr.url)
-			} else {
-				logrus.Errorf("Error running FFUF: %s", err)
-			}
-
+		var errorCount int
+		for range errChan {
+			errorCount++
 		}
+
+		// Print scan summary
+		processed := atomic.LoadInt64(&urlsProcessed)
+		skipped := atomic.LoadInt64(&urlsSkipped)
+		failed := atomic.LoadInt64(&urlsFailed)
+		findings := atomic.LoadInt64(&totalFindings)
+		logrus.Infof("Scan complete: %d URLs processed, %d skipped, %d failed, %d unique findings, %d total errors",
+			processed, skipped, failed, findings, errorCount)
 	},
 }
 

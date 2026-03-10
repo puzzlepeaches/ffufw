@@ -27,8 +27,7 @@ var (
 	verbose                bool
 	excludeWaf             bool
 	replayProxy            string
-	customWordlist         string
-	customWordlistPath     string
+	customWordlist string
 )
 
 type urlError struct {
@@ -92,6 +91,12 @@ var rootCmd = &cobra.Command{
 		urls = removeMicrosoftUrls(urls)
 		totalURLs := len(urls)
 
+		// Resolve custom wordlist path once before workers start (avoids data race)
+		var resolvedCustomWordlist string
+		if customWordlist != "" {
+			resolvedCustomWordlist = expandPath(customWordlist)
+		}
+
 		urlChan := make(chan string, concurrency)
 		errChan := make(chan error, totalURLs*10)
 
@@ -145,18 +150,12 @@ var rootCmd = &cobra.Command{
 					ffufInstance, err := ffuf.NewFFUF(url, techData, concurrency, outputDir, ffufPath, ffufPostprocessingPath, configFile)
 					if err != nil {
 						logrus.Warnf("[%d/%d] Failed to initialize: %s [%s]", current, totalURLs, url, err)
-						errChan <- err
+						errChan <- &urlError{url: url, err: err}
 						atomic.AddInt64(&urlsFailed, 1)
 						continue
 					}
 
-					if customWordlist != "" {
-						customWordlistPath = expandPath(customWordlist)
-					} else {
-						customWordlistPath = ""
-					}
-
-					techCommands, err := ffuf.TechCommands(ffufInstance, url, customWordlistPath)
+					techCommands, err := ffuf.TechCommands(ffufInstance, url, resolvedCustomWordlist)
 					if err != nil {
 						logrus.Warnf("[%d/%d] Failed to generate commands: %s [%s]", current, totalURLs, url, err)
 						errChan <- &urlError{url: url, err: err}

@@ -95,14 +95,17 @@ func removeLeadingSlash(wordlistPath string) error {
 	}
 
 	// Write the updated lines back to the file
-	file.Seek(0, 0)
-	file.Truncate(0)
+	if _, err := file.Seek(0, 0); err != nil {
+		return fmt.Errorf("could not seek file: %w", err)
+	}
+	if err := file.Truncate(0); err != nil {
+		return fmt.Errorf("could not truncate file: %w", err)
+	}
 	writer := bufio.NewWriter(file)
 	for _, line := range lines {
 		fmt.Fprintln(writer, line)
 	}
-	writer.Flush()
-	return nil
+	return writer.Flush()
 }
 
 func WordlistPath() {

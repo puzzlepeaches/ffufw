@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -46,6 +47,7 @@ func SubmitGowitness(gowitnessAddress string, result string) error {
 		return err
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) // drain body for connection reuse
 
 	logrus.Debugf("Submitted URL to gowitness: %s [RESP: %s]", result, resp.Status)
 
@@ -90,6 +92,7 @@ func SubmitReplayProxy(replayProxy string, result string) error {
 		return err
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) // drain body for connection reuse
 
 	// Show the response status code
 	logrus.Debugf("Submitted URL to replay proxy: %s [RESP: %s]", result, resp.Status)

@@ -36,20 +36,22 @@ func SubmitGowitness(gowitnessAddress string, result string) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Create a new HTTP client
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Second * 30,
+	}
 
 	// Send the request
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	logrus.Debugf("Submitted URL to gowitness: %s [RESP: %s]", result, resp.Status)
 
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-
-	defer resp.Body.Close()
 
 	return nil
 
@@ -60,7 +62,7 @@ func SubmitReplayProxy(replayProxy string, result string) error {
 
 	proxyURL, err := url.Parse(replayProxy)
 	if err != nil {
-		logrus.Fatalf("Could not parse replay proxy URL: %s", replayProxy)
+		return fmt.Errorf("could not parse replay proxy URL %s: %w", replayProxy, err)
 	}
 
 	// Create a new HTTP client with the proxy, a timeout, and disable SSL verification
@@ -75,8 +77,7 @@ func SubmitReplayProxy(replayProxy string, result string) error {
 	// Create a new request
 	req, err := http.NewRequest("GET", result, nil)
 	if err != nil {
-		logrus.Debug(err)
-		logrus.Fatalf("Could not create request: %s", err)
+		return fmt.Errorf("could not create request for %s: %w", result, err)
 	}
 
 	// Set the User-Agent to mimic a Chrome browser

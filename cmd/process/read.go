@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 )
 
@@ -27,7 +27,7 @@ func ParseOutput(outputFile string) ([]string, error) {
 	defer file.Close()
 
 	// Read the file
-	byteValue, err := ioutil.ReadAll(file)
+	byteValue, err := io.ReadAll(file)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading file: %s", err)
 	}

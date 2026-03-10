@@ -4,10 +4,23 @@ import (
 	"errors"
 	"net"
 	"net/url"
+	"sync"
 
 	valid "github.com/asaskevich/govalidator"
 	cdn "github.com/projectdiscovery/cdncheck"
 )
+
+var (
+	cdnClient     *cdn.Client
+	cdnClientOnce sync.Once
+)
+
+func getCDNClient() *cdn.Client {
+	cdnClientOnce.Do(func() {
+		cdnClient = cdn.New()
+	})
+	return cdnClient
+}
 
 func extractHostname(host string) (string, error) {
 	// Extract hostname or IP address from URL
@@ -32,7 +45,7 @@ func resolveDomain(host string) (string, error) {
 }
 
 func CheckWaf(url string) (string, error) {
-	cdncheck := cdn.New()
+	client := getCDNClient()
 
 	hostname, err := extractHostname(url)
 	if err != nil {
@@ -48,7 +61,7 @@ func CheckWaf(url string) (string, error) {
 	}
 
 	// Check if WAF
-	matched, val, err := cdncheck.CheckWAF(net.ParseIP(hostname))
+	matched, val, err := client.CheckWAF(net.ParseIP(hostname))
 	if err != nil {
 		return "", err
 	}

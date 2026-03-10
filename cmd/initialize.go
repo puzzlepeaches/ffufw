@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	valid "github.com/asaskevich/govalidator"
@@ -75,7 +74,7 @@ func checkGowitness(address string) {
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
-		client := &http.Client{Transport: tr}
+		client := &http.Client{Transport: tr, Timeout: time.Second * 10}
 
 		// Send the request
 		resp, err := client.Do(req)
@@ -97,35 +96,17 @@ func checkOutput(outputDir string) {
 		logrus.Debugf("Creating output directory at %s", outputDir)
 
 		// Create directory
-		err := os.Mkdir(outputDir, 0755)
+		err := os.MkdirAll(outputDir, 0755)
 		if err != nil {
-			logrus.Fatalf("Could not create output directory at %s", err)
-			logrus.Fatalf("Could not create output directory at %s", outputDir)
+			logrus.Fatalf("Could not create output directory %s: %v", outputDir, err)
 		}
 	}
 }
 
 func createWordlistDir() {
 	path := expandPath("~/.ffufw/wordlists")
-
-	// Create parent directory if it doesn't exist
-	parentDir := filepath.Dir(path)
-	if _, err := os.Stat(parentDir); os.IsNotExist(err) {
-		err := os.Mkdir(parentDir, 0755)
-		if err != nil {
-			logrus.Fatalf("Could not create parent directory at %s", parentDir)
-		}
-	}
-
-	// Create wordlist directory if it doesn't exist
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		logrus.Debugf("Creating wordlist directory at %s", path)
-
-		// Create directory
-		err := os.Mkdir(path, 0755)
-		if err != nil {
-			logrus.Fatalf("Could not create wordlist directory at %s", path)
-		}
+	if err := os.MkdirAll(path, 0755); err != nil {
+		logrus.Fatalf("Could not create wordlist directory %s: %v", path, err)
 	}
 }
 

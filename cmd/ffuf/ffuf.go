@@ -179,7 +179,7 @@ func TechCommands(ffufInstance *FFUF, command string, url string, customWordlist
 				wordlistFile := filepath.Join(wordlistPath, "misc", "raft-large-words.txt")
 				outputFile := ffufInstance.URL.outputDir + "/results.raft-large-words.json"
 
-				techCommand := command + " -w " + wordlistFile + "-e " + extension + " -of json -od " + ffufInstance.URL.outputDir + " -o " + outputFile
+				techCommand := command + " -w " + wordlistFile + " -e " + extension + " -of json -od " + ffufInstance.URL.outputDir + " -o " + outputFile
 				techCommands = append(techCommands, techCommand)
 			}
 		}
@@ -218,7 +218,7 @@ func CraftCommand(ffufInstance *FFUF) string {
 	// command := ffufInstance.FFUFPath + " -u " + ffufInstance.URL.fuzzUrl + " -mc all "
 	command := ffufInstance.FFUFPath + " -u " + ffufInstance.URL.fuzzUrl
 
-	if ffufInstance.configFile != "" || ffufInstance.configFile != "~/.ffufrc" {
+	if ffufInstance.configFile != "" && ffufInstance.configFile != "~/.ffufrc" {
 		command += " -config " + ffufInstance.configFile
 	}
 
@@ -244,10 +244,12 @@ func RunFfuf(ffufInstance *FFUF, techCommand string) error {
 func RunPostProcessing(ffufInstance *FFUF, techCommand string) (string, error) {
 
 	// Select output file from last item in techCommand
-	outputFile := strings.Split(techCommand, " ")[len(strings.Split(techCommand, " "))-1]
+	cmdParts := strings.Split(techCommand, " ")
+	outputFile := cmdParts[len(cmdParts)-1]
 
 	// Get wordlist name from output file
-	wordlistName := strings.Split(outputFile, "/")[len(strings.Split(outputFile, "/"))-1]
+	pathParts := strings.Split(outputFile, "/")
+	wordlistName := pathParts[len(pathParts)-1]
 	wordlistName = strings.TrimSuffix(wordlistName, filepath.Ext(wordlistName))
 
 	// Define the command

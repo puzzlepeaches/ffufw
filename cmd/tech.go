@@ -1,15 +1,27 @@
 package cmd
 
 import (
-	"crypto/tls"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
-	"time"
+	"sync"
 
 	wappalyzer "github.com/projectdiscovery/wappalyzergo"
 	"github.com/sirupsen/logrus"
 )
+
+var (
+	wappalyzerClient *wappalyzer.Wappalyze
+	wappalyzerOnce   sync.Once
+	wappalyzerErr    error
+)
+
+func getWappalyzerClient() (*wappalyzer.Wappalyze, error) {
+	wappalyzerOnce.Do(func() {
+		wappalyzerClient, wappalyzerErr = wappalyzer.New()
+	})
+	return wappalyzerClient, wappalyzerErr
+}
 
 type tech struct {
 	url    string
@@ -65,12 +77,13 @@ func defineStruct(url string, fingerprints []string) tech {
 				if keyword == "Spring" {
 					tech.api = true
 				}
-				// search for api in the url
-				if strings.Contains(url, "api") {
-					tech.api = true
-				}
 			}
 		}
+	}
+
+	// Check for api in the URL once, outside the loop
+	if strings.Contains(url, "api") {
+		tech.api = true
 	}
 
 	return tech
@@ -78,14 +91,7 @@ func defineStruct(url string, fingerprints []string) tech {
 
 func detectTech(url string) ([]string, error) {
 
-	// Check if URL is valid and reachable
-	isValid, err := checkURL(url)
-	if err != nil || !isValid {
-		logrus.Debugf("Error checking URL: %s", err)
-		return nil, err
-	}
-
-	// Get the response from the URL
+	// Get the response from the URL (also validates reachability)
 	resp, err := getResponse(url)
 	if err != nil {
 		logrus.Debugf("Error issuing request: %s", err)
@@ -93,8 +99,8 @@ func detectTech(url string) ([]string, error) {
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
-	data, err := ioutil.ReadAll(resp.Body)
+	// Read the response body with a 10MB limit to prevent OOM
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
 		return nil, err
 	}
@@ -142,15 +148,6 @@ func detectTech(url string) ([]string, error) {
 }
 
 func getResponse(url string) (*http.Response, error) {
-	// Create a new HTTP client with a timeout and disable SSL verification
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   time.Second * 10,
-	}
-
 	// Create a new request and add Chrome user agent
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -158,8 +155,8 @@ func getResponse(url string) (*http.Response, error) {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
 
-	// Get the response from the URL
-	resp, err := client.Do(req)
+	// Get the response from the URL using shared client
+	resp, err := sharedHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -168,15 +165,15 @@ func getResponse(url string) (*http.Response, error) {
 }
 
 func analyzeURL(resp *http.Response, data []byte) (map[string]struct{}, error) {
-	// Create a new wappalyzer instance
-	wappalyzerClient, err := wappalyzer.New()
+	// Get or create the wappalyzer instance (initialized once)
+	client, err := getWappalyzerClient()
 	if err != nil {
 		logrus.Errorf("Could not create new wappalyzer instance: %s", err)
 		return nil, err
 	}
 
 	// Analyze the target URL
-	fingerprints := wappalyzerClient.Fingerprint(resp.Header, data)
+	fingerprints := client.Fingerprint(resp.Header, data)
 
 	return fingerprints, nil
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -36,19 +37,18 @@ func downloadFile(filepath string, url string) error {
 	return nil
 }
 
-func createDirectory(path string) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		// Create directory
-		err := os.Mkdir(path, 0755)
-		if err != nil {
-			logrus.Fatalf("Could not create directory at %s", path)
-		}
+func createDirectory(path string) error {
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return fmt.Errorf("could not create directory at %s: %w", path, err)
 	}
+	return nil
 }
 
-func getWordlists(wordlists []Wordlist, dir string) {
+func getWordlists(wordlists []Wordlist, dir string) error {
 	// Create directory
-	createDirectory(dir)
+	if err := createDirectory(dir); err != nil {
+		return err
+	}
 
 	// Download wordlists
 	for _, wordlist := range wordlists {
@@ -57,22 +57,24 @@ func getWordlists(wordlists []Wordlist, dir string) {
 		if _, err := os.Stat(wordlistPath); os.IsNotExist(err) {
 			// Download wordlist
 			logrus.Infof("Downloading %s wordlist", wordlist.Name)
-			err := downloadFile(wordlistPath, wordlist.URL)
-			if err != nil {
-				logrus.Fatalf("Could not download %s wordlist: %s", wordlist.Name, err)
+			if err := downloadFile(wordlistPath, wordlist.URL); err != nil {
+				return fmt.Errorf("could not download %s wordlist: %w", wordlist.Name, err)
 			}
 		}
 		if wordlist.Name == "leaky-paths" {
 			// open file and remove leading slash
-			removeLeadingSlash(wordlistPath)
+			if err := removeLeadingSlash(wordlistPath); err != nil {
+				return fmt.Errorf("could not process %s: %w", wordlistPath, err)
+			}
 		}
 	}
+	return nil
 }
 
-func removeLeadingSlash(wordlistPath string) {
+func removeLeadingSlash(wordlistPath string) error {
 	file, err := os.OpenFile(wordlistPath, os.O_RDWR, 0644)
 	if err != nil {
-		logrus.Fatalf("Could not open file: %s", err)
+		return fmt.Errorf("could not open file: %w", err)
 	}
 	defer file.Close()
 
@@ -89,7 +91,7 @@ func removeLeadingSlash(wordlistPath string) {
 
 	// Check for errors from scanner
 	if err := scanner.Err(); err != nil {
-		logrus.Fatalf("Could not read file: %s", err)
+		return fmt.Errorf("could not read file: %w", err)
 	}
 
 	// Write the updated lines back to the file
@@ -100,6 +102,7 @@ func removeLeadingSlash(wordlistPath string) {
 		fmt.Fprintln(writer, line)
 	}
 	writer.Flush()
+	return nil
 }
 
 func WordlistPath() {
@@ -110,78 +113,56 @@ func WordlistPath() {
 	}
 	// Check if wordlists directory exists
 	wordlistsDir := filepath.Join(home, ".ffufw", "wordlists")
-	createDirectory(wordlistsDir)
+	if err := createDirectory(wordlistsDir); err != nil {
+		logrus.Fatalf("Could not create wordlists directory: %s", err)
+	}
 }
 
-func getMiscWordlists() {
-	home, _ := os.UserHomeDir()
-	miscWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "misc")
-	getWordlists(MiscWordlists, miscWordlistsDir)
-}
-
-func getIisWordlists() {
-	home, _ := os.UserHomeDir()
-	iisWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "iis")
-	getWordlists(IisWordlists, iisWordlistsDir)
-}
-
-func getPhpWordlists() {
-	home, _ := os.UserHomeDir()
-	phpWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "php")
-	getWordlists(PhpWordlists, phpWordlistsDir)
-}
-
-func getJavaWordlists() {
-	home, _ := os.UserHomeDir()
-	javaWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "java")
-	getWordlists(JavaWordlists, javaWordlistsDir)
-}
-
-func getApiWordlists() {
-	home, _ := os.UserHomeDir()
-	apiWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "api")
-	getWordlists(ApiWordlists, apiWordlistsDir)
-}
-
-func getPythonWorlists() {
-	home, _ := os.UserHomeDir()
-	pythonWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "python")
-	getWordlists(PythonWordlists, pythonWordlistsDir)
-}
-
-func getRubyWorlists() {
-	home, _ := os.UserHomeDir()
-	rubyWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "ruby")
-	getWordlists(RubyWordlists, rubyWordlistsDir)
-}
-
-func getSapWordlists() {
-	home, _ := os.UserHomeDir()
-	sapWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "sap")
-	getWordlists(SapWordlists, sapWordlistsDir)
-}
-
-func getNginxWordlists() {
-	home, _ := os.UserHomeDir()
-	nginxWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "nginx")
-	getWordlists(NginxWordlists, nginxWordlistsDir)
-}
-
-func getAdobeWordlists() {
-	home, _ := os.UserHomeDir()
-	adobeWordlistsDir := filepath.Join(home, ".ffufw", "wordlists", "adobe")
-	getWordlists(AdobeWordlists, adobeWordlistsDir)
+type wordlistCategory struct {
+	name      string
+	wordlists []Wordlist
 }
 
 func GetWordlistsAll() {
-	getMiscWordlists()
-	getIisWordlists()
-	getPhpWordlists()
-	getJavaWordlists()
-	getApiWordlists()
-	getPythonWorlists()
-	getRubyWorlists()
-	getSapWordlists()
-	getNginxWordlists()
-	getAdobeWordlists()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logrus.Fatalf("Could not find home directory: %s", err)
+	}
+	base := filepath.Join(home, ".ffufw", "wordlists")
+
+	categories := []wordlistCategory{
+		{"misc", MiscWordlists},
+		{"iis", IisWordlists},
+		{"php", PhpWordlists},
+		{"java", JavaWordlists},
+		{"api", ApiWordlists},
+		{"python", PythonWordlists},
+		{"ruby", RubyWordlists},
+		{"sap", SapWordlists},
+		{"nginx", NginxWordlists},
+		{"adobe", AdobeWordlists},
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4) // limit concurrent downloads
+	errChan := make(chan error, len(categories))
+
+	for _, cat := range categories {
+		wg.Add(1)
+		go func(c wordlistCategory) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if err := getWordlists(c.wordlists, filepath.Join(base, c.name)); err != nil {
+				errChan <- err
+			}
+		}(cat)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		logrus.Fatalf("Error downloading wordlists: %s", err)
+	}
 }

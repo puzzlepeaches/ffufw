@@ -3,4 +3,4 @@ vendor
 output/
 *.txt
 .vscode
-!.vscode/launch.json
+!.vscode/launch.jsonffufw
